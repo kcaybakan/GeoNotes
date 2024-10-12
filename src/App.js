@@ -1,18 +1,48 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import './App.css';
-import { Container, Typography, Box, Button, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Modal, IconButton, createTheme, ThemeProvider } from '@mui/material';
-import L from 'leaflet';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import { db, storage } from './firebase'; // Firebase yapılandırması
-import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc } from 'firebase/firestore'; // Firestore işlemleri
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Storage işlemleri
+import React, { useState, useEffect, useRef } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMapEvents,
+} from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import "./App.css";
+import {
+  Container,
+  Typography,
+  Box,
+  Button,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Modal,
+  IconButton,
+  createTheme,
+  ThemeProvider,
+} from "@mui/material";
+import L from "leaflet";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import { db, storage } from "./firebase"; // Firebase yapılandırması
+import {
+  collection,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+} from "firebase/firestore"; // Firestore işlemleri
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Storage işlemleri
 
 const redIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/149/149059.png',
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149059.png",
   iconSize: [25, 25],
   iconAnchor: [12, 25],
   popupAnchor: [1, -34],
@@ -29,13 +59,13 @@ const theme = createTheme({
       fontWeight: 600,
     },
     body1: {
-      fontSize: '1.3rem',
+      fontSize: "1.3rem",
     },
     body2: {
-      fontSize: '1rem',
+      fontSize: "1rem",
     },
     body3: {
-      fontSize: '0.7rem',
+      fontSize: "0.7rem",
     },
   },
 });
@@ -46,20 +76,24 @@ const App = () => {
   const [currentPosition, setCurrentPosition] = useState(null);
   const [openModal, setOpenModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [selectedNoteText, setSelectedNoteText] = useState('');
-  const [selectedNoteDate, setSelectedNoteDate] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [selectedNoteText, setSelectedNoteText] = useState("");
+  const [selectedNoteDate, setSelectedNoteDate] = useState("");
+  const [selectedNote, setSelectedNote] = useState(null); // Düzenlenecek notu saklamak için state
   const mapRef = useRef(null);
   const markerRefs = useRef([]);
   const [loading, setLoading] = useState(true);
 
   // Firestore'dan verileri almak için
   const fetchNotes = async () => {
-    const notesCollection = collection(db, 'notes');  // Firestore'daki 'notes' koleksiyonu
+    const notesCollection = collection(db, "notes"); // Firestore'daki 'notes' koleksiyonu
     const notesSnapshot = await getDocs(notesCollection);
-    const notesList = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const notesList = notesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
     setNotes(notesList);
     setFilteredNotes(notesList);
     setLoading(false);
@@ -80,22 +114,52 @@ const App = () => {
     }
   }, [filteredNotes]);
 
-  const handleEditNote = async (noteId, updatedNoteText, updatedNoteDate) => {
-    const noteDoc = doc(db, 'notes', noteId); // Firestore'da belirli notun dokümanını bul
+  // Edit modalını açmak için fonksiyon
+  const handleEditClick = (note) => {
+    setSelectedNote(note); // Düzenlemek için notu seçiyoruz
+    setOpenModal(true); // Edit modalını açıyoruz
+  };
+
+  // handleEditNote fonksiyonu güncellemesi
+  const handleEditNote = async (
+    noteId,
+    updatedNoteText,
+    updatedNoteDate,
+    updatedImageFile
+  ) => {
+    // selectedNote'un image değerini kontrol ediyoruz
+    let updatedImageUrl = selectedNote?.image || null; // Eğer yeni bir resim yüklenmediyse mevcut resmi koruyalım
+
+    if (updatedImageFile) {
+      const storageRef = ref(
+        storage,
+        `images/${Date.now()}_${updatedImageFile.name}`
+      );
+      await uploadBytes(storageRef, updatedImageFile);
+      updatedImageUrl = await getDownloadURL(storageRef);
+    }
+
+    const noteDoc = doc(db, "notes", noteId); // Firestore'da belirli notun dokümanını bul
     await updateDoc(noteDoc, {
       noteText: updatedNoteText,
-      date: updatedNoteDate
-    }).then(() => {
-      console.log('Not başarıyla güncellendi.');
-      fetchNotes(); // Notları yeniden çek
-    }).catch(error => {
-      console.error('Not güncellenirken bir hata oluştu:', error);
-    });
+      date: updatedNoteDate,
+      image: updatedImageUrl,
+    })
+      .then(() => {
+        console.log("Not başarıyla güncellendi.");
+        fetchNotes(); // Notları yeniden çek
+        setOpenModal(false); // Modalı kapat
+      })
+      .catch((error) => {
+        console.error("Not güncellenirken bir hata oluştu:", error);
+      });
   };
 
   const filterNotes = () => {
-    const filtered = notes.filter(note => {
-      const matchesNote = note.noteText.toLowerCase().includes(searchTerm.toLowerCase());
+    const filtered = notes.filter((note) => {
+      const matchesNote = note.noteText
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
       const noteDate = new Date(note.date);
       const matchesDate =
         (!startDate || noteDate >= new Date(startDate)) &&
@@ -106,9 +170,9 @@ const App = () => {
   };
 
   const resetFilters = () => {
-    setSearchTerm('');
-    setStartDate('');
-    setEndDate('');
+    setSearchTerm("");
+    setStartDate("");
+    setEndDate("");
     setFilteredNotes(notes);
   };
 
@@ -124,19 +188,19 @@ const App = () => {
     // Firebase Storage'a resim yükleme
     if (imageFile) {
       const storageRef = ref(storage, `images/${Date.now()}_${imageFile.name}`);
-      await uploadBytes(storageRef, imageFile);  // Dosyayı Firebase Storage'a yükleme
-      imageUrl = await getDownloadURL(storageRef);  // Yüklenen dosyanın URL'sini alma
+      await uploadBytes(storageRef, imageFile); // Dosyayı Firebase Storage'a yükleme
+      imageUrl = await getDownloadURL(storageRef); // Yüklenen dosyanın URL'sini alma
     }
 
     const newNote = {
       position: { lat: currentPosition.lat, lng: currentPosition.lng },
       noteText,
       date,
-      image: imageUrl
+      image: imageUrl,
     };
 
     // Firestore'a not ekleme
-    const docRef = await addDoc(collection(db, 'notes'), newNote);
+    const docRef = await addDoc(collection(db, "notes"), newNote);
     setNotes([...notes, { ...newNote, id: docRef.id }]);
     setFilteredNotes([...notes, { ...newNote, id: docRef.id }]);
     setCurrentPosition(null);
@@ -144,8 +208,8 @@ const App = () => {
   };
 
   const handleDeleteNote = async (id) => {
-    await deleteDoc(doc(db, 'notes', id));  // Firestore'dan sil
-    const updatedNotes = notes.filter(note => note.id !== id);
+    await deleteDoc(doc(db, "notes", id)); // Firestore'dan sil
+    const updatedNotes = notes.filter((note) => note.id !== id);
     setNotes(updatedNotes);
     setFilteredNotes(updatedNotes);
   };
@@ -172,18 +236,20 @@ const App = () => {
       <Container>
         {/* Harita Not Uygulaması Başlığı */}
         <Typography variant="h4" align="center" gutterBottom>
-          Harita Not Uygulaması
+          GeoNote
         </Typography>
 
         {/* Harita Alanı */}
         <Box mb={4} borderRadius={2} overflow="hidden" boxShadow={3}>
-
           <MapContainer
             center={[20, 0]}
             zoom={2}
             minZoom={2}
-            style={{ height: '625px', width: '100%' }}
-            maxBounds={[[-85, -180], [85, 180]]}
+            style={{ height: "625px", width: "100%" }}
+            maxBounds={[
+              [-85, -180],
+              [85, 180],
+            ]}
             maxBoundsViscosity={1.0}
             worldCopyJump={false}
             ref={mapRef}
@@ -200,20 +266,45 @@ const App = () => {
                   key={index}
                   position={note.position}
                   icon={redIcon}
-                  ref={(el) => markerRefs.current[index] = el}
+                  ref={(el) => (markerRefs.current[index] = el)}
                 >
                   <Popup>
-                    <Box display="flex" flexDirection="row" alignItems="center" justifyContent="flex-start">
+                    <Box
+                      display="flex"
+                      flexDirection="row"
+                      alignItems="center"
+                      justifyContent="flex-start"
+                    >
                       {note.image && (
                         <Box mr={2}>
-                          <img src={note.image} alt="note" width="60" style={{ borderRadius: '4px' }} />
+                          <img
+                            src={note.image}
+                            alt="note"
+                            width="60"
+                            style={{ borderRadius: "4px", cursor: "pointer" }} // cursor: "pointer" ile tıklanabilirlik belirtildi
+                            onClick={() =>
+                              handleImageClick(
+                                note.image,
+                                note.date,
+                                note.noteText
+                              )
+                            } // Resme tıklandığında handleImageClick çağrılır
+                          />
                         </Box>
                       )}
-                      <Box display="flex" flexDirection="column" justifyContent="center">
-                        <Typography variant="caption" sx={{ color: 'brown' }}>
-                          {new Date(note.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      <Box
+                        display="flex"
+                        flexDirection="column"
+                        justifyContent="center"
+                      >
+                        <Typography variant="caption" sx={{ color: "brown" }}>
+                          {new Date(note.date).toLocaleDateString("tr-TR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        <Typography variant="body2" sx={{ fontWeight: "bold" }}>
                           {note.noteText}
                         </Typography>
                       </Box>
@@ -228,17 +319,24 @@ const App = () => {
         </Box>
 
         {/* Filtreler ve Notlar Tablosu */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h5" gutterBottom>Filtre</Typography>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
+          <Typography variant="h5" gutterBottom>
+            Filtre
+          </Typography>
           <Button
             variant="contained"
             onClick={resetFilters}
             sx={{
-              backgroundColor: '#6F4E37',
-              color: '#fff',
-              borderRadius: '12px',
-              '&:hover': {
-                backgroundColor: '#5a3c2c',
+              backgroundColor: "#6F4E37",
+              color: "#fff",
+              borderRadius: "12px",
+              "&:hover": {
+                backgroundColor: "#5a3c2c",
               },
             }}
           >
@@ -255,8 +353,8 @@ const App = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           multiline
           sx={{
-            '& .MuiOutlinedInput-root': {
-              borderRadius: '12px',
+            "& .MuiOutlinedInput-root": {
+              borderRadius: "12px",
             },
           }}
         />
@@ -273,8 +371,8 @@ const App = () => {
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "12px",
               },
             }}
           />
@@ -289,47 +387,72 @@ const App = () => {
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "12px",
               },
             }}
           />
         </Box>
 
-        <Typography variant="h5" gutterBottom>Notlar</Typography>
-        <NoteTable notes={filteredNotes} onDelete={handleDeleteNote} onEdit={handleEditNote} onFocusMarker={focusOnMarker} />
+        <Typography variant="h5" gutterBottom>
+          Notlar
+        </Typography>
+        <NoteTable
+          notes={filteredNotes}
+          onDelete={handleDeleteNote}
+          onEdit={handleEditNote}
+          onFocusMarker={focusOnMarker}
+        />
 
-        <NoteModal open={openModal} onClose={() => setOpenModal(false)} onSubmit={addNote} />
+        <NoteModal
+          open={openModal}
+          onClose={() => setOpenModal(false)}
+          onSubmit={addNote}
+        />
 
         {selectedImage && (
-          <Modal open={true} onClose={closeImageModal} aria-labelledby="image-modal-title">
+          <Modal
+            open={true}
+            onClose={closeImageModal}
+            aria-labelledby="image-modal-title"
+          >
             <Box
               sx={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '80%',
-                maxHeight: '80%',
-                bgcolor: 'background.paper',
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "80%",
+                maxHeight: "80%",
+                bgcolor: "background.paper",
                 boxShadow: 24,
                 p: 4,
                 borderRadius: 2,
               }}
             >
-              <img src={selectedImage} alt="note" style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }} />
+              <img
+                src={selectedImage}
+                alt="note"
+                style={{
+                  width: "100%",
+                  maxHeight: "70vh",
+                  objectFit: "contain",
+                }}
+              />
               <Box
                 sx={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 10,
                   left: 10,
-                  bgcolor: 'rgba(0, 0, 0, 0.7)',
-                  color: 'white',
+                  bgcolor: "rgba(0, 0, 0, 0.7)",
+                  color: "white",
                   p: 1,
                   borderRadius: 1,
                 }}
               >
-                <Typography variant="body2">Tarih: {selectedNoteDate}</Typography>
+                <Typography variant="body2">
+                  Tarih: {selectedNoteDate}
+                </Typography>
                 <Typography variant="body2">Not: {selectedNoteText}</Typography>
               </Box>
             </Box>
@@ -348,8 +471,8 @@ const MapClickHandler = ({ onClick }) => {
 };
 
 const NoteModal = ({ open, onClose, onSubmit }) => {
-  const [noteText, setNoteText] = useState('');
-  const [date, setDate] = useState('');
+  const [noteText, setNoteText] = useState("");
+  const [date, setDate] = useState("");
   const [imageFile, setImageFile] = useState(null);
 
   const handleImageChange = (e) => {
@@ -362,22 +485,33 @@ const NoteModal = ({ open, onClose, onSubmit }) => {
   };
 
   return (
-    <Modal open={open} onClose={onClose} aria-labelledby="modal-title" aria-describedby="modal-description">
+    <Modal
+      open={open}
+      onClose={onClose}
+      aria-labelledby="modal-title"
+      aria-describedby="modal-description"
+    >
       <Box
         sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
           width: 400,
-          bgcolor: '#f9f9f9',
-          boxShadow: '0px 10px 20px rgba(0, 0, 0, 0.12)',
+          bgcolor: "#f9f9f9",
+          boxShadow: "0px 10px 20px rgba(0, 0, 0, 0.12)",
           p: 4,
-          borderRadius: '24px',
-          overflow: 'hidden',
+          borderRadius: "24px",
+          overflow: "hidden",
         }}
       >
-        <Typography id="modal-title" variant="h6" component="h2" gutterBottom sx={{ fontWeight: 'bold', color: '#333' }}>
+        <Typography
+          id="modal-title"
+          variant="h6"
+          component="h2"
+          gutterBottom
+          sx={{ fontWeight: "bold", color: "#333" }}
+        >
           Yeni Not Ekle
         </Typography>
         <form onSubmit={handleSubmit}>
@@ -390,9 +524,9 @@ const NoteModal = ({ open, onClose, onSubmit }) => {
             onChange={(e) => setNoteText(e.target.value)}
             required
             sx={{
-              borderRadius: '12px',
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
+              borderRadius: "12px",
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "12px",
               },
             }}
           />
@@ -405,9 +539,9 @@ const NoteModal = ({ open, onClose, onSubmit }) => {
             onChange={(e) => setDate(e.target.value)}
             required
             sx={{
-              borderRadius: '12px',
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
+              borderRadius: "12px",
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "12px",
               },
             }}
           />
@@ -420,15 +554,15 @@ const NoteModal = ({ open, onClose, onSubmit }) => {
             InputProps={{
               inputProps: {
                 style: {
-                  fontSize: '0.9rem',
-                  padding: '10px',
+                  fontSize: "0.9rem",
+                  padding: "10px",
                 },
               },
             }}
             sx={{
-              borderRadius: '12px',
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
+              borderRadius: "12px",
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "12px",
               },
             }}
           />
@@ -438,11 +572,11 @@ const NoteModal = ({ open, onClose, onSubmit }) => {
             fullWidth
             sx={{
               mt: 2,
-              backgroundColor: '#6F4E37',
-              color: '#fff',
-              borderRadius: '20px',
-              '&:hover': {
-                backgroundColor: '#5a3c2c',
+              backgroundColor: "#6F4E37",
+              color: "#fff",
+              borderRadius: "20px",
+              "&:hover": {
+                backgroundColor: "#5a3c2c",
               },
             }}
           >
@@ -455,37 +589,108 @@ const NoteModal = ({ open, onClose, onSubmit }) => {
 };
 
 const NoteTable = ({ notes, onDelete, onEdit, onFocusMarker }) => (
-  <TableContainer component={Paper} sx={{ mt: 4, mb: 8, borderRadius: 2, boxShadow: 3 }}>
+  <TableContainer
+    component={Paper}
+    sx={{ mt: 4, mb: 8, borderRadius: 2, boxShadow: 3 }}
+  >
     <Table>
       <TableHead>
         <TableRow>
-          <TableCell sx={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#333', width: '5%' }}></TableCell>
-          <TableCell sx={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#333', width: '60%' }}>Not</TableCell>
-          <TableCell sx={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#333', width: '20%' }}>Tarih</TableCell>
-          <TableCell sx={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#333', width: '15%' }}>İşlemler</TableCell>
+          <TableCell
+            sx={{
+              fontSize: "1rem",
+              fontWeight: "bold",
+              color: "#333",
+              width: "5%",
+            }}
+          ></TableCell>
+          <TableCell
+            sx={{
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              color: "#333",
+              width: "75%",
+            }}
+          >
+            Not
+          </TableCell>
+          <TableCell
+            sx={{
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              color: "#333",
+              width: "10%",
+            }}
+          >
+            Tarih
+          </TableCell>
+          <TableCell
+            sx={{
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              color: "#333",
+              width: "10%",
+            }}
+          >
+            İşlemler
+          </TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
         {notes.map((note, index) => (
-          <TableRow key={index} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, backgroundColor: '#f9f9f9', borderBottom: '1px solid #ddd' }}>
+          <TableRow
+            key={index}
+            hover
+            sx={{
+              "&:last-child td, &:last-child th": { border: 0 },
+              backgroundColor: "#f9f9f9",
+              borderBottom: "1px solid #ddd",
+            }}
+          >
             {/* Map Icon Kolonu */}
-            <TableCell sx={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
+            <TableCell
+              sx={{ fontSize: "0.7rem", fontWeight: "bold", color: "#333" }}
+            >
               <IconButton color="default" onClick={() => onFocusMarker(index)}>
-                <LocationOnIcon sx={{ color: '#6F4E37' }} />
+                <LocationOnIcon sx={{ color: "#6F4E37" }} />
               </IconButton>
             </TableCell>
             {/* Not Kolonu */}
-            <TableCell sx={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>{note.noteText}</TableCell>
+            <TableCell
+              sx={{
+                fontSize: "0.975rem",
+                fontWeight: "regular",
+                color: "#333",
+              }}
+            >
+              {note.noteText}
+            </TableCell>
             {/* Tarih Kolonu */}
-            <TableCell sx={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>
-              {new Date(note.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            <TableCell
+              sx={{ fontSize: "1.1rem", fontWeight: "bold", color: "#333" }}
+            >
+              {new Date(note.date).toLocaleDateString("tr-TR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })}
             </TableCell>
             {/* İşlemler Kolonu */}
-            <TableCell sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-              <IconButton color="primary" onClick={() => onEdit(note)} sx={{ '&:hover': { backgroundColor: '#e0f7fa' } }}>
+            <TableCell
+              sx={{ display: "flex", gap: 1, justifyContent: "center" }}
+            >
+              <IconButton
+                color="primary"
+                onClick={() => onEdit(note)}
+                sx={{ "&:hover": { backgroundColor: "#e0f7fa" } }}
+              >
                 <EditIcon />
               </IconButton>
-              <IconButton color="secondary" onClick={() => onDelete(note.id)} sx={{ '&:hover': { backgroundColor: '#ffebee' } }}>
+              <IconButton
+                color="secondary"
+                onClick={() => onDelete(note.id)}
+                sx={{ "&:hover": { backgroundColor: "#ffebee" } }}
+              >
                 <DeleteIcon />
               </IconButton>
             </TableCell>
@@ -495,5 +700,75 @@ const NoteTable = ({ notes, onDelete, onEdit, onFocusMarker }) => (
     </Table>
   </TableContainer>
 );
+
+// EditNoteModal bileşeni
+const EditNoteModal = ({ open, onClose, note, onSubmit }) => {
+  const [noteText, setNoteText] = useState(note.noteText);
+  const [date, setDate] = useState(note.date);
+  const [imageFile, setImageFile] = useState(null);
+
+  const handleImageChange = (e) => {
+    setImageFile(e.target.files[0]);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(note.id, noteText, date, imageFile);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <Box
+        sx={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: 400,
+          bgcolor: "#f9f9f9",
+          boxShadow: "0px 10px 20px rgba(0, 0, 0, 0.12)",
+          p: 4,
+          borderRadius: "24px",
+          overflow: "hidden",
+        }}
+      >
+        <Typography variant="h6" component="h2" gutterBottom>
+          Notu Düzenle
+        </Typography>
+        <form onSubmit={handleSubmit}>
+          <TextField
+            label="Not"
+            fullWidth
+            margin="normal"
+            multiline
+            minRows={3}
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            required
+          />
+          <TextField
+            label="Tarih"
+            type="date"
+            fullWidth
+            margin="normal"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+          <TextField
+            type="file"
+            fullWidth
+            margin="normal"
+            onChange={handleImageChange}
+            accept="image/*"
+          />
+          <Button type="submit" variant="contained" fullWidth sx={{ mt: 2 }}>
+            Güncelle
+          </Button>
+        </form>
+      </Box>
+    </Modal>
+  );
+};
 
 export default App;
