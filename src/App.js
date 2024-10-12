@@ -400,7 +400,7 @@ const App = () => {
         <NoteTable
           notes={filteredNotes}
           onDelete={handleDeleteNote}
-          onEdit={handleEditNote}
+          onEdit={handleEditClick}
           onFocusMarker={focusOnMarker}
         />
 
@@ -457,6 +457,15 @@ const App = () => {
               </Box>
             </Box>
           </Modal>
+        )}
+        {/* Düzenleme Modalı */}
+        {selectedNote && (
+          <EditNoteModal
+            open={openModal}
+            onClose={() => setOpenModal(false)}
+            note={selectedNote}
+            onSubmit={handleEditNote}
+          />
         )}
       </Container>
     </ThemeProvider>
@@ -703,8 +712,9 @@ const NoteTable = ({ notes, onDelete, onEdit, onFocusMarker }) => (
 
 // EditNoteModal bileşeni
 const EditNoteModal = ({ open, onClose, note, onSubmit }) => {
-  const [noteText, setNoteText] = useState(note.noteText);
-  const [date, setDate] = useState(note.date);
+  // Eğer note propsu undefined veya null ise varsayılan boş değerler kullanıyoruz
+  const [noteText, setNoteText] = useState(note?.noteText || "");
+  const [date, setDate] = useState(note?.date || "");
   const [imageFile, setImageFile] = useState(null);
 
   const handleImageChange = (e) => {
