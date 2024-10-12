@@ -40,6 +40,7 @@ import {
   doc,
 } from "firebase/firestore"; // Firestore işlemleri
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Storage işlemleri
+import { query, where } from "firebase/firestore"; // Firestore işlemleri
 
 const redIcon = new L.Icon({
   iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149059.png",
@@ -85,7 +86,10 @@ const App = () => {
   const mapRef = useRef(null);
   const markerRefs = useRef([]);
   const [loading, setLoading] = useState(true);
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // Auth durumu için state
+  const [username, setUsername] = useState(""); // Kullanıcı adı için state
+  const [password, setPassword] = useState(""); // Şifre için state
+  const [authError, setAuthError] = useState(""); // Hata mesajı için state
   // Firestore'dan verileri almak için
   const fetchNotes = async () => {
     const notesCollection = collection(db, "notes"); // Firestore'daki 'notes' koleksiyonu
@@ -113,6 +117,23 @@ const App = () => {
       mapRef.current.invalidateSize();
     }
   }, [filteredNotes]);
+
+  // Giriş yap fonksiyonu
+  const handleLogin = async () => {
+    const usersCollection = collection(db, "users");
+    const q = query(
+      usersCollection,
+      where("username", "==", username),
+      where("password", "==", password)
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      setIsAuthenticated(true); // Giriş başarılıysa auth durumunu true yap
+    } else {
+      setAuthError("Kullanıcı adı veya şifre hatalı"); // Giriş hatalıysa hata mesajı göster
+    }
+  };
 
   // Edit modalını açmak için fonksiyon
   const handleEditClick = (note) => {
@@ -230,6 +251,68 @@ const App = () => {
       markerRefs.current[index].openPopup();
     }
   };
+
+  if (!isAuthenticated) {
+    // Eğer kullanıcı giriş yapmadıysa login ekranını göster
+    return (
+      <ThemeProvider theme={theme}>
+        <Container>
+          <Typography variant="h4" align="center" gutterBottom>
+            GeoNote
+          </Typography>
+          <Box
+            display="flex"
+            flexDirection="column"
+            justifyContent="center"
+            alignItems="center"
+            sx={{ mt: 4 }}
+          >
+            <Typography variant="h5" gutterBottom>
+              Giriş Yap
+            </Typography>
+            <TextField
+              label="Kullanıcı Adı"
+              variant="outlined"
+              fullWidth
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              sx={{ mb: 2, width: "100%", maxWidth: "400px" }}
+            />
+            <TextField
+              label="Şifre"
+              variant="outlined"
+              type="password"
+              fullWidth
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              sx={{ mb: 2, width: "100%", maxWidth: "400px" }}
+            />
+            {authError && (
+              <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+                {authError}
+              </Typography>
+            )}
+            <Button
+              variant="contained"
+              onClick={handleLogin}
+              sx={{
+                backgroundColor: "#6F4E37",
+                color: "#fff",
+                borderRadius: "12px",
+                "&:hover": {
+                  backgroundColor: "#5a3c2c",
+                },
+                width: "100%",
+                maxWidth: "400px",
+              }}
+            >
+              Giriş Yap
+            </Button>
+          </Box>
+        </Container>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
