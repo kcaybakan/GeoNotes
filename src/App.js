@@ -41,9 +41,10 @@ import {
 } from "firebase/firestore"; // Firestore işlemleri
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Storage işlemleri
 import { query, where } from "firebase/firestore"; // Firestore işlemleri
+import markerIcon from "./asset/marker.png";
 
 const redIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149059.png",
+  iconUrl: markerIcon,
   iconSize: [25, 25],
   iconAnchor: [12, 25],
   popupAnchor: [1, -34],
@@ -124,7 +125,7 @@ const App = () => {
       setIsAuthenticated(true);
     }
   }, []);
-  
+
   // Giriş yap fonksiyonu
   const handleLogin = async () => {
     const usersCollection = collection(db, "users");
