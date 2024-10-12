@@ -117,7 +117,14 @@ const App = () => {
       mapRef.current.invalidateSize();
     }
   }, [filteredNotes]);
-
+  // Uygulama yüklendiğinde localStorage'daki durumu kontrol et
+  useEffect(() => {
+    const isUserLoggedIn = localStorage.getItem("isAuthenticated");
+    if (isUserLoggedIn === "true") {
+      setIsAuthenticated(true);
+    }
+  }, []);
+  
   // Giriş yap fonksiyonu
   const handleLogin = async () => {
     const usersCollection = collection(db, "users");
@@ -130,6 +137,7 @@ const App = () => {
 
     if (!querySnapshot.empty) {
       setIsAuthenticated(true); // Giriş başarılıysa auth durumunu true yap
+      localStorage.setItem("isAuthenticated", "true"); // Giriş durumunu localStorage'a kaydet
     } else {
       setAuthError("Kullanıcı adı veya şifre hatalı"); // Giriş hatalıysa hata mesajı göster
     }
